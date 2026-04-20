@@ -1,6 +1,6 @@
 #!/bin/zsh
 # ============================================================
-#  macOS 系统数据诊断与清理工具 0.5
+#  macOS 系统数据诊断与清理工具 0.6
 #
 #  诊断「系统设置 → 储存空间 → 系统数据」异常偏大的根因，
 #  覆盖 20+ 种已知的膨胀场景，逐项展示诊断结果并提供清理选项。
@@ -148,10 +148,10 @@ add_item() {
 
 echo ""
 echo "${B}╔════════════════════════════════════════════════════════════╗${NC}"
-echo "${B}║     macOS 系统数据诊断与清理工具 0.5                      ║${NC}"
+echo "${B}║     macOS 系统数据诊断与清理工具 0.6                      ║${NC}"
 echo "${B}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo "  本工具自动扫描 22 项已知的「系统数据」膨胀根因，"
+echo "  本工具自动扫描 28 项已知的「系统数据」膨胀根因，"
 echo "  精准定位异常占用并提供逐项清理选项。"
 echo ""
 
@@ -205,7 +205,7 @@ fi
 progress_idx=0
 scan_msg() {
     progress_idx=$((progress_idx + 1))
-    printf "\r  ${D}[%2d/22] 正在扫描: %-40s${NC}" "$progress_idx" "$1"
+    printf "\r  ${D}[%2d/28] 正在扫描: %-40s${NC}" "$progress_idx" "$1"
 }
 
 # ────────────────────────────────────────
@@ -250,7 +250,7 @@ get_size_kb sz "/.Spotlight-V100" "sudo"
 add_item "Spotlight 系统索引" "/.Spotlight-V100" "$sz" \
     "Spotlight 搜索索引，损坏或重建时可能异常膨胀。正常 2-5 GB。" \
     "sudo mdutil -E /" \
-    "system" "Spotlight 搜索暂时不可用（重建约 30 分钟至数小时）" 10485760
+    "system" "Spotlight 搜索暂时不可用（重建约 30 分钟至数小时）" 8388608
 
 # 5. 系统日志与诊断数据
 scan_msg "系统日志与诊断"
@@ -260,8 +260,8 @@ get_size_kb sz_uuid "/private/var/db/uuidtext" "sudo"
 sz_total=$((sz_log + sz_diag + sz_uuid))
 add_item "系统日志与诊断数据" "/private/var/log + diagnostics + uuidtext" "$sz_total" \
     "系统运行日志和崩溃诊断报告。长时间不重启或存在崩溃循环时会膨胀。正常 < 2 GB。" \
-    "sudo log erase --all 2>/dev/null" \
-    "system" "清除历史诊断日志，不影响系统运行" 5242880
+    "sudo log erase --all 2>/dev/null; sudo rm -rf ~/Library/Logs/DiagnosticReports/* 2>/dev/null" \
+    "system" "清除历史诊断日志，不影响系统运行" 2097152
 
 # 6. macOS 更新暂存
 scan_msg "macOS 更新暂存"
@@ -289,16 +289,35 @@ add_item "GarageBand / Logic 音频库" "/Library/Audio + Application Support" "
 #  用户级扫描（无需 sudo）
 # ────────────────────────────────────────
 
-# 8. iCloud 同步缓存
-scan_msg "iCloud 同步缓存"
+# 8. iCloud Drive / bird（CloudDocs 同步 daemon 缓存）
+# 拆分自原来的合并 iCloud 项：bird 负责 iCloud Drive，失控时只重建元数据，
+# Optimized Storage 下的已下载原件不会丢
+scan_msg "iCloud Drive 缓存 (bird)"
 get_size_kb sz_bird "$HOME/Library/Caches/com.apple.bird"
-get_size_kb sz_ck "$HOME/Library/Caches/CloudKit"
 get_size_kb sz_cd "$HOME/Library/Application Support/CloudDocs"
-sz_total=$((sz_bird + sz_ck + sz_cd))
-add_item "iCloud 同步缓存" "~/Library/Caches/com.apple.bird + CloudKit + CloudDocs" "$sz_total" \
-    "iCloud Drive 同步过程中的本地缓存。同步卡住或大量文件时可能膨胀。正常 < 3 GB。" \
-    "killall bird 2>/dev/null; [ -d ~/Library/Caches/com.apple.bird ] && mv ~/Library/Caches/com.apple.bird ~/Library/Caches/com.apple.bird.bak-${TS} 2>/dev/null; [ -d ~/Library/Caches/CloudKit ] && mv ~/Library/Caches/CloudKit ~/Library/Caches/CloudKit.bak-${TS} 2>/dev/null" \
-    "user" "iCloud 文件重新同步，临时中断" 5242880
+sz_total=$((sz_bird + sz_cd))
+add_item "iCloud Drive 缓存 (bird)" "~/Library/Caches/com.apple.bird + Application Support/CloudDocs" "$sz_total" \
+    "bird 是 iCloud Drive 的同步守护进程。同步卡住或大文件上传中时会累积缓存。正常 < 3 GB。清理后会重建元数据，已下载到本地的文件不受影响。" \
+    "killall bird 2>/dev/null; [ -d ~/Library/Caches/com.apple.bird ] && mv ~/Library/Caches/com.apple.bird ~/Library/Caches/com.apple.bird.bak-${TS} 2>/dev/null; [ -d ~/Library/Application\\ Support/CloudDocs ] && mv ~/Library/Application\\ Support/CloudDocs ~/Library/Application\\ Support/CloudDocs.bak-${TS} 2>/dev/null" \
+    "user" "iCloud Drive 重新同步元数据，临时中断几分钟" 3145728
+
+# 9. iCloud Photos / cloudphotosd（Photos 同步 daemon）
+# 失控时 Shared Albums 会全量重下，必须由用户手动在 Photos 里先关同步
+scan_msg "iCloud Photos 缓存 (cloudphotosd)"
+get_size_kb sz_photod "$HOME/Library/Containers/com.apple.cloudphotosd"
+add_item "iCloud Photos 缓存 (cloudphotosd)" "~/Library/Containers/com.apple.cloudphotosd" "$sz_photod" \
+    "cloudphotosd 是 Photos 的 iCloud 同步守护进程。已知 bug：同步失败时此目录可一天内涨到几百 GB。Apple Community 建议：先在 Photos → 设置 → iCloud 关闭 iCloud 照片，退出 Photos，再清理该目录；否则 Photos 运行中删除会造成数据库不一致。" \
+    "# 需手动操作：1) 打开 Photos → 设置 → iCloud，关闭「iCloud 照片」；2) 退出 Photos 应用；3) 回到本工具重跑，届时本项会变为可自动清理。" \
+    "user" "Shared Albums 会全量重下，流量大；共享相簿多时不建议清" 5242880
+
+# 10. CloudKit 通用缓存
+# 其他 App 通过 CloudKit 同步的缓存（Notes / Reminders / 第三方 App 等）
+scan_msg "CloudKit 通用缓存"
+get_size_kb sz_ck "$HOME/Library/Caches/CloudKit"
+add_item "CloudKit 通用缓存" "~/Library/Caches/CloudKit" "$sz_ck" \
+    "各类使用 iCloud 同步的 App（Notes、Reminders、第三方 App 等）的 CloudKit 缓存。Monterey 12.4 起有已知 bug 可导致无限增长。清理安全，只重建元数据。" \
+    "killall cloudd 2>/dev/null; [ -d ~/Library/Caches/CloudKit ] && mv ~/Library/Caches/CloudKit ~/Library/Caches/CloudKit.bak-${TS} 2>/dev/null" \
+    "user" "各 iCloud App 重新同步元数据，不影响云端数据" 2097152
 
 # 9. CoreSpotlight 元数据
 scan_msg "CoreSpotlight 元数据"
@@ -355,9 +374,22 @@ add_item "OneDrive 同步缓存" "~/Library/Group Containers/.../OneDrive" "$sz"
 # 15. 用户级缓存（汇总）
 scan_msg "用户应用缓存"
 get_size_kb sz "$HOME/Library/Caches"
+# 只在超过阈值时才算 Top 5，避免对小占用做冗余扫描
+cache_top5=""
+if [ "$sz" -gt 15728640 ]; then
+    cache_top5=$(du -sk "$HOME/Library/Caches/"* 2>/dev/null | sort -rn | head -5 | awk '{
+        kb=$1; $1=""; sub(/^ +/, "");
+        sub(/.*Caches\//, "");
+        if (kb >= 1048576) printf "            %.1f GB — %s\n", kb/1048576, $0
+        else if (kb >= 1024) printf "            %.1f MB — %s\n", kb/1024, $0
+        else printf "            %d KB — %s\n", kb, $0
+    }')
+fi
+cache_desc="~/Library/Caches 下每个应用自己的缓存。通配清理会误删登录态、下载进度等，本工具仅做诊断。请根据 Top 子目录在对应应用内清理。"
+[ -n "$cache_top5" ] && cache_desc="${cache_desc}\n          Top 5 占用：\n${cache_top5}"
 add_item "用户应用缓存（汇总）" "~/Library/Caches" "$sz" \
-    "~/Library/Caches 下每个应用自己的缓存。通配清理会误删登录态、下载进度等，本工具仅做诊断。请根据 Top 子目录在对应应用内清理。" \
-    "# 仅诊断：请用 du -sh ~/Library/Caches/* | sort -hr | head -10 查看占用最大的子目录，再在对应应用内清理（如 Chrome 的「清除浏览数据」）" \
+    "$cache_desc" \
+    "# 仅诊断：请在上方 Top 5 对应的应用内清理（如 Chrome/Edge 的「清除浏览数据」、Spotify 的「存储空间」等），不要直接 rm 子目录" \
     "user" "不自动清理——通配清理风险过高" 15728640
 
 # 16. Mail 附件下载
@@ -456,6 +488,72 @@ add_item "asitop 功耗采样日志" \
     "user" \
     "asitop 重启后会重新生成；/tmp 本来就是临时目录，清理零风险" \
     102400  # 100 MB
+
+# 23. mediaanalysisd 缓存（Sequoia 15.1 引入的 Photos 对象/人脸识别 daemon）
+# 已知 bug：从备份恢复或时间戳变更后会反复重索引，Reddit/Apple 社区大量
+# 15GB → 140GB 案例。Michael Tsai 专题文章。
+# 策略：先 quit Photos，再 mv 到 .bak；不 killall daemon（launchd 会拉起，无必要）
+scan_msg "mediaanalysisd 缓存"
+mad_dir="$HOME/Library/Containers/com.apple.mediaanalysisd/Data/Library/Caches"
+sz=0
+[ -d "$mad_dir" ] && get_size_kb sz "$mad_dir"
+add_item "Photos 分析缓存 (mediaanalysisd)" \
+    "~/Library/Containers/com.apple.mediaanalysisd/Data/Library/Caches" \
+    "$sz" \
+    "Sequoia 15.1 引入的 Photos 对象/人脸识别守护进程缓存。已知 bug：从备份恢复或系统时间异常后会反复重索引，可膨胀至 140 GB。Michael Tsai / OSXDaily 多处报告。清理前会先退出 Photos 以避免写冲突。" \
+    "osascript -e 'tell application \"Photos\" to quit' 2>/dev/null; sleep 1; [ -d \"\$HOME/Library/Containers/com.apple.mediaanalysisd/Data/Library/Caches\" ] && mv \"\$HOME/Library/Containers/com.apple.mediaanalysisd/Data/Library/Caches\" \"\$HOME/Library/Containers/com.apple.mediaanalysisd/Data/Library/Caches.bak-${TS}\" 2>/dev/null" \
+    "user" \
+    "下次打开 Photos 会重新扫描库（后台进行，不影响日常使用）" \
+    5242880  # 5 GB
+
+# 24. Biome 行为数据库（Siri 建议 / Spotlight 个性化排序 / 专注模式）
+# macOS 13+ 替代 knowledgeC 的私有行为数据库。MPU / Apple Community 上
+# 66GB、113GB 案例，均为 streams/restricted/ 下 tombstone 堆积。
+# 策略：只 mv restricted 子目录，daemon biomesyncd 自愈；不动 CoreDuet（SIP）
+scan_msg "Biome 行为数据库"
+biome_dir="$HOME/Library/Biome/streams/restricted"
+sz=0
+[ -d "$biome_dir" ] && get_size_kb sz "$biome_dir"
+add_item "Biome 行为数据库" \
+    "~/Library/Biome/streams/restricted" \
+    "$sz" \
+    "macOS 13+ 的私有行为数据库（Siri 建议、Spotlight 个性化排序、专注模式）。已知 bug：restricted/ 下 tombstone 不自动清理，实测可达 113 GB。biomesyncd 在目录被删后会自动重建。" \
+    "[ -d \"\$HOME/Library/Biome/streams/restricted\" ] && mv \"\$HOME/Library/Biome/streams/restricted\" \"\$HOME/Library/Biome/streams/restricted.bak-${TS}\" 2>/dev/null" \
+    "user" \
+    "Siri 建议 / Spotlight 个性化排序会重置，几天内重新学习恢复" \
+    2097152  # 2 GB
+
+# 25. Xcode Simulator Runtime（系统域）
+# 你原有的 #11 只覆盖 ~/Library/Developer，系统域 /Library/Developer/CoreSimulator
+# 没覆盖（开发者 55-62 GB 的大头在这里）。优先用官方 xcrun simctl CLI。
+scan_msg "Xcode Simulator Runtime (系统域)"
+sz=0
+[ -d "/Library/Developer/CoreSimulator" ] && get_size_kb sz "/Library/Developer/CoreSimulator" "sudo"
+add_item "Xcode Simulator Runtime（系统域）" \
+    "/Library/Developer/CoreSimulator (Volumes + Cryptex)" \
+    "$sz" \
+    "Xcode iOS/tvOS/watchOS 模拟器运行时的系统级安装目录。每次 Xcode 升级会保留旧版本，不自动清理。Apple 官方 CLI：xcrun simctl runtime delete --notUsedSinceDays N。" \
+    "osascript -e 'tell application \"Xcode\" to quit' 2>/dev/null; xcrun simctl shutdown all 2>/dev/null; xcrun simctl delete unavailable 2>/dev/null; xcrun simctl runtime delete --notUsedSinceDays 180 2>/dev/null" \
+    "system" \
+    "删除超过 180 天未使用的模拟器运行时；Xcode 正在用的 runtime 不会被删（官方命令保护）" \
+    20971520  # 20 GB
+
+# 26. Adobe Media Cache
+# Premiere / After Effects / Bridge 的媒体索引缓存，默认上限卷容量 10%。
+# 官方推荐通过 App Settings → Media Cache → Delete，但也可直接 mv。
+scan_msg "Adobe Media Cache"
+sz1=0; sz2=0
+[ -d "$HOME/Library/Application Support/Adobe/Common/Media Cache Files" ] && get_size_kb sz1 "$HOME/Library/Application Support/Adobe/Common/Media Cache Files"
+[ -d "$HOME/Library/Application Support/Adobe/Common/Media Cache" ] && get_size_kb sz2 "$HOME/Library/Application Support/Adobe/Common/Media Cache"
+sz_total=$((sz1 + sz2))
+add_item "Adobe Media Cache" \
+    "~/Library/Application Support/Adobe/Common/Media Cache*" \
+    "$sz_total" \
+    "Premiere / After Effects / Bridge 等 Adobe 应用的媒体索引缓存（peak/CFA/索引文件）。默认上限是卷容量的 10%（500 GB 盘 = 50 GB 缓存）。Adobe 官方确认可清，老项目打开会重新生成索引。清理前会自动退出 Adobe 全家桶。" \
+    "for app in 'Adobe Premiere Pro' 'Adobe After Effects' 'Adobe Media Encoder' 'Adobe Bridge' 'Adobe Photoshop'; do osascript -e \"tell application \\\"\$app\\\" to quit\" 2>/dev/null; done; sleep 2; [ -d \"\$HOME/Library/Application Support/Adobe/Common/Media Cache Files\" ] && mv \"\$HOME/Library/Application Support/Adobe/Common/Media Cache Files\" \"\$HOME/Library/Application Support/Adobe/Common/Media Cache Files.bak-${TS}\" 2>/dev/null; [ -d \"\$HOME/Library/Application Support/Adobe/Common/Media Cache\" ] && mv \"\$HOME/Library/Application Support/Adobe/Common/Media Cache\" \"\$HOME/Library/Application Support/Adobe/Common/Media Cache.bak-${TS}\" 2>/dev/null" \
+    "user" \
+    "Adobe 应用会关闭；下次打开项目会重新生成 peak/CFA 索引（首次会慢）" \
+    10485760  # 10 GB
 
 # ────────────────────────────────────────
 #  合成信号：大体积数据堆积区（本工具不清理，给方向）
@@ -646,11 +744,18 @@ if [ "$cleaned_total" -gt 0 ]; then
         "/Library/macOS Install Data.bak-${TS}"
         "/Library/Updates.bak-${TS}"
         "${HOME}/Library/Caches/com.apple.bird.bak-${TS}"
+        "${HOME}/Library/Application Support/CloudDocs.bak-${TS}"
         "${HOME}/Library/Caches/CloudKit.bak-${TS}"
+        "${HOME}/Library/Containers/com.apple.cloudphotosd.bak-${TS}"
         "${HOME}/Library/Metadata/CoreSpotlight.bak-${TS}"
         "${HOME}/Library/Developer/Xcode/DerivedData.bak-${TS}"
         "${HOME}/Library/Application Support/Code/Cache.bak-${TS}"
         "${HOME}/Library/Application Support/Code/CachedData.bak-${TS}"
+        "${HOME}/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/archives.bak-${TS}"
+        "${HOME}/Library/Containers/com.apple.mediaanalysisd/Data/Library/Caches.bak-${TS}"
+        "${HOME}/Library/Biome/streams/restricted.bak-${TS}"
+        "${HOME}/Library/Application Support/Adobe/Common/Media Cache Files.bak-${TS}"
+        "${HOME}/Library/Application Support/Adobe/Common/Media Cache.bak-${TS}"
     )
     _bak_found=()
     for _p in "${_bak_candidates[@]}"; do
