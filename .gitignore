@@ -1,0 +1,23 @@
+# macOS 系统元数据
+.DS_Store
+
+# Claude Code 本地配置（含绝对路径与权限设置）
+.claude/
+
+# 诊断日志（含个人 Mac 路径和目录大小，不应公开）
+verify_*.log
+
+# 本地保留但不公开的文件
+IconCacheCleaner.command
+20260420-小红书.md
+CLAUDE.md
+Changelog.md
+
+# 编辑器本地配置
+.vscode/
+.idea/
+
+# 临时 / 备份文件
+*.bak
+*.bak-*
+*~
