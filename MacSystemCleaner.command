@@ -23,7 +23,8 @@ TOTAL_RECLAIMABLE=0
 
 # 清理策略：对无官方命令的项，采用 "mv 到 .bak-<时间戳>" 代替 rm -rf，保证可回滚。
 # 确认系统运行正常后，用户可手动执行 rm -rf 相应 .bak-* 释放空间。
-TS=$(date +%Y%m%d_%H%M%S)
+# 加 $$（PID）+ $RANDOM 防止同秒内连续运行导致 .bak 目录名碰撞
+TS=$(date +%Y%m%d_%H%M%S)_$$_$RANDOM
 
 close_and_exit() {
     echo ""
@@ -95,7 +96,7 @@ __do_clean_iconservices() {
     echo "  核对无误后，请输入 ${B}DELETE${NC}（全大写）确认删除；其他任何输入将取消。"
     printf "  > "
     local typed
-    read typed
+    read -r typed
     if [ "$typed" != "DELETE" ]; then
         echo "  ${Y}已取消${NC}"
         return 1
@@ -188,7 +189,7 @@ if [ "$SUDO_OK" -ne 0 ]; then
     echo "  ${Y}建议按 Ctrl+C 退出，在终端中以管理员身份重新运行。${NC}"
     echo ""
     printf "  是否仍要继续（仅扫描用户级项目）? (y/n): "
-    read -k 1 cont
+    read -rk 1 cont
     echo ""
     if [ "$cont" != "y" ] && [ "$cont" != "Y" ]; then
         close_and_exit
@@ -224,16 +225,16 @@ if [ "$tm_snapshots" -gt 3 ]; then
 fi
 
 # 3. APFS 第三方快照
+# 注意：diskutil apfs listSnapshots 需要挂载点（如 /）或 APFS 卷标识（如 disk3s1s1），
+# 不能用 "Part of Whole" 给出的整盘标识（disk3）—— 那样会报 "is not an APFS Volume"。
 scan_msg "APFS 第三方快照"
-boot_disk=$(diskutil info / 2>/dev/null | grep "Part of Whole" | sed 's/.*: *//' || true)
-if [ -n "$boot_disk" ]; then
-    apfs_snaps=$(diskutil apfs listSnapshots "$boot_disk" 2>/dev/null | grep -c "Snapshot Name" || true)
-    if [ "$apfs_snaps" -gt 2 ]; then
-        add_item "APFS 快照 (${apfs_snaps} 个，含系统快照)" "diskutil apfs listSnapshots" $((apfs_snaps * 3145728)) \
-            "第三方备份工具（Carbon Copy Cloner 等）或系统更新创建的快照。" \
-            "# 需手动确认后删除：diskutil apfs listSnapshots ${boot_disk}" \
-            "system" "快照数据不可恢复" 0
-    fi
+apfs_snaps=$(diskutil apfs listSnapshots / 2>/dev/null | grep -c "Snapshot Name" || true)
+[ -z "$apfs_snaps" ] && apfs_snaps=0
+if [ "$apfs_snaps" -gt 2 ]; then
+    add_item "APFS 快照 (${apfs_snaps} 个，含系统快照)" "diskutil apfs listSnapshots /" $((apfs_snaps * 3145728)) \
+        "第三方备份工具（Carbon Copy Cloner 等）或系统更新创建的快照。" \
+        "# 需手动确认后删除：diskutil apfs listSnapshots / ； 再 sudo diskutil apfs deleteSnapshot / -uuid <UUID>" \
+        "system" "快照数据不可恢复" 0
 fi
 
 # 4. Spotlight 系统索引
@@ -472,7 +473,7 @@ while true; do
     echo ""
     echo "  ${D}还有 ${remaining} 项可清理，输入编号、a（全部）或 q（退出）${NC}"
     printf "  请选择 > "
-    read choice
+    read -r choice
 
     if [ "$choice" = "q" ] || [ "$choice" = "Q" ]; then
         break
@@ -480,7 +481,7 @@ while true; do
     
     if [ "$choice" = "a" ] || [ "$choice" = "A" ]; then
         printf "  ${Y}确认清理全部 ${ITEM_COUNT} 项？(y/n): ${NC}"
-        read -k 1 confirm_all
+        read -rk 1 confirm_all
         echo ""
         if [ "$confirm_all" != "y" ] && [ "$confirm_all" != "Y" ]; then
             continue
@@ -520,7 +521,7 @@ while true; do
             echo "  ${B}${ITEM_NAMES[$idx]}${NC} — $(human_size $local_size)"
             echo "  ${Y}风险：${ITEM_RISKS[$idx]}${NC}"
             printf "  确认清理？(y/n): "
-            read -k 1 confirm
+            read -rk 1 confirm
             echo ""
             if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
                 fix_cmd="${ITEM_FIXES[$idx]}"

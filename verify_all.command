@@ -249,16 +249,13 @@ fi
 log ""
 
 log "[3/20] APFS 第三方快照"
-boot_disk=$(diskutil info / 2>/dev/null | grep "Part of Whole" | sed 's/.*: *//' || true)
-if [ -n "$boot_disk" ]; then
-    snap_output=$(diskutil apfs listSnapshots "$boot_disk" 2>/dev/null)
-    CNT_APFS=$(echo "$snap_output" | grep -c "Snapshot Name" || true)
-    log "  启动盘: $boot_disk, 快照数: $CNT_APFS"
-    if [ "$CNT_APFS" -gt 0 ]; then
-        echo "$snap_output" >> "$LOG_FILE"
-    fi
-else
-    log "  无法获取启动盘信息"
+# 直接用挂载点 / 而不是 "Part of Whole" 的整盘 ID（那个不是 APFS Volume，会失败）
+snap_output=$(diskutil apfs listSnapshots / 2>/dev/null)
+CNT_APFS=$(echo "$snap_output" | grep -c "Snapshot Name" || true)
+[ -z "$CNT_APFS" ] && CNT_APFS=0
+log "  挂载点 /, 快照数: $CNT_APFS"
+if [ "$CNT_APFS" -gt 0 ]; then
+    echo "$snap_output" >> "$LOG_FILE"
 fi
 log ""
 
@@ -335,7 +332,7 @@ log ""
 log "[15/20] 用户应用缓存"
 get_size_kb SZ_USERCACHE "$HOME/Library/Caches"
 log "  Top 5 子目录:"
-du -sk "$HOME/Library/Caches/"* 2>/dev/null | sort -rn | head -5 | while read kb dir; do
+du -sk "$HOME/Library/Caches/"* 2>/dev/null | sort -rn | head -5 | while IFS= read -r kb dir; do
     log "    $(human_size_kb $kb) — $(display_name "$(basename "$dir")")"
 done
 log ""
@@ -378,7 +375,7 @@ log "========== 额外诊断 =========="
 log ""
 
 log "~/Library 一级目录 Top 10:"
-du -sk "$HOME/Library/"* 2>/dev/null | sort -rn | head -10 | while read kb dir; do
+du -sk "$HOME/Library/"* 2>/dev/null | sort -rn | head -10 | while IFS= read -r kb dir; do
     log "  $(human_size_kb $kb) — $(display_name "$(basename "$dir")")"
 done
 log ""
@@ -386,7 +383,7 @@ log ""
 log "~/Library/Containers 子目录 Top 10 （沙盒应用数据，通常是大头）:"
 if [ -d "$HOME/Library/Containers" ]; then
     SZ_CONTAINERS=$(du -sk "$HOME/Library/Containers" 2>/dev/null | awk '{print $1}')
-    du -sk "$HOME/Library/Containers/"* 2>/dev/null | sort -rn | head -10 | while read kb dir; do
+    du -sk "$HOME/Library/Containers/"* 2>/dev/null | sort -rn | head -10 | while IFS= read -r kb dir; do
         log "  $(human_size_kb $kb) — $(display_name "$(basename "$dir")")"
     done
     log "  （Containers 合计: $(human_size_kb ${SZ_CONTAINERS:-0})）"
@@ -398,7 +395,7 @@ log ""
 log "~/Library/Application Support 子目录 Top 10:"
 if [ -d "$HOME/Library/Application Support" ]; then
     SZ_APPSUPPORT=$(du -sk "$HOME/Library/Application Support" 2>/dev/null | awk '{print $1}')
-    du -sk "$HOME/Library/Application Support/"* 2>/dev/null | sort -rn | head -10 | while read kb dir; do
+    du -sk "$HOME/Library/Application Support/"* 2>/dev/null | sort -rn | head -10 | while IFS= read -r kb dir; do
         log "  $(human_size_kb $kb) — $(display_name "$(basename "$dir")")"
     done
     log "  （Application Support 合计: $(human_size_kb ${SZ_APPSUPPORT:-0})）"
@@ -410,7 +407,7 @@ log ""
 log "~/Library/Group Containers 子目录 Top 10:"
 if [ -d "$HOME/Library/Group Containers" ]; then
     SZ_GROUPCONT=$(du -sk "$HOME/Library/Group Containers" 2>/dev/null | awk '{print $1}')
-    du -sk "$HOME/Library/Group Containers/"* 2>/dev/null | sort -rn | head -10 | while read kb dir; do
+    du -sk "$HOME/Library/Group Containers/"* 2>/dev/null | sort -rn | head -10 | while IFS= read -r kb dir; do
         log "  $(human_size_kb $kb) — $(display_name "$(basename "$dir")")"
     done
     log "  （Group Containers 合计: $(human_size_kb ${SZ_GROUPCONT:-0})）"
@@ -420,13 +417,13 @@ fi
 log ""
 
 log "/Library 一级目录 Top 10:"
-sudo du -sk /Library/* 2>/dev/null | sort -rn | head -10 | while read kb dir; do
+sudo du -sk /Library/* 2>/dev/null | sort -rn | head -10 | while IFS= read -r kb dir; do
     log "  $(human_size_kb $kb) — $(display_name "$(basename "$dir")")"
 done
 log ""
 
 log "/Library/Caches 子目录 Top 10:"
-sudo du -sk /Library/Caches/* 2>/dev/null | sort -rn | head -10 | while read kb dir; do
+sudo du -sk /Library/Caches/* 2>/dev/null | sort -rn | head -10 | while IFS= read -r kb dir; do
     log "  $(human_size_kb $kb) — $(display_name "$(basename "$dir")")"
 done
 log ""
