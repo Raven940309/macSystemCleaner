@@ -1,6 +1,6 @@
 # macSystemCleaner
 
-> macOS「系统数据」爆仓的靶向诊断工具 —— 帮你找出那些常规清理工具碰不到的真正元凶。
+> macOS System Data bloat targeted diagnostic tool. "系统数据"异常占用的靶向诊断与清理工具
 
 ## 这个工具是怎么来的
 
