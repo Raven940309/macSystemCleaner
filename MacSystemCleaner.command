@@ -1,6 +1,6 @@
 #!/bin/zsh
 # ============================================================
-#  macOS 系统数据诊断与清理工具 0.3
+#  macOS 系统数据诊断与清理工具 0.4
 #
 #  诊断「系统设置 → 储存空间 → 系统数据」异常偏大的根因，
 #  覆盖 20+ 种已知的膨胀场景，逐项展示诊断结果并提供清理选项。
@@ -148,7 +148,7 @@ add_item() {
 
 echo ""
 echo "${B}╔════════════════════════════════════════════════════════════╗${NC}"
-echo "${B}║     macOS 系统数据诊断与清理工具 0.3                      ║${NC}"
+echo "${B}║     macOS 系统数据诊断与清理工具 0.4                      ║${NC}"
 echo "${B}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo "  本工具自动扫描 20+ 种已知的「系统数据」膨胀根因，"
@@ -421,6 +421,29 @@ add_item \
     "user" \
     "缩略图重新生成，无风险" \
     2097152  # 2 GB
+
+# ────────────────────────────────────────
+#  合成信号：大体积数据堆积区（本工具不清理，给方向）
+#  这些目录里是用户数据 + 各 App 自己管理的缓存，直接删会丢聊天记录/笔记/授权等
+# ────────────────────────────────────────
+
+# 沙盒应用数据（Containers）：> 50 GB 触发提示
+scan_msg "沙盒应用数据总量"
+sz_containers=0
+[ -d "$HOME/Library/Containers" ] && get_size_kb sz_containers "$HOME/Library/Containers"
+add_item "沙盒应用数据（Containers）" "~/Library/Containers" "$sz_containers" \
+    "macOS 现代 App 的数据主要存这里：微信聊天记录、飞书数据、Lightroom 预览、Docker.raw 等。大头通常是微信；本工具不替你判断该删什么（删错会丢数据）。请在对应 App 内清理：微信「设置→通用→清理缓存」；飞书「设置→通用→清除缓存」；Docker 用 docker system prune -a --volumes；Lightroom「偏好设置→性能→清除缓存」。" \
+    "# 仅诊断：请跑 du -sh ~/Library/Containers/* | sort -hr | head -10 看哪些 App 占最多，然后在对应 App 内清理。切勿直接 rm。" \
+    "user" "不自动清理 —— 删错会丢 App 数据（聊天记录/笔记/授权）" 52428800  # 50 GB
+
+# Application Support：> 30 GB 触发提示
+scan_msg "应用支持数据总量"
+sz_appsupport=0
+[ -d "$HOME/Library/Application Support" ] && get_size_kb sz_appsupport "$HOME/Library/Application Support"
+add_item "应用支持数据（Application Support）" "~/Library/Application Support" "$sz_appsupport" \
+    "非沙盒 App 的数据目录（Adobe、JetBrains、Steam、Obsidian/Notion 等）。注意：Lightroom Catalogs 是照片数据库、Obsidian 子目录是你的笔记，切勿直接删。只删确认是缓存或不再用的 App。" \
+    "# 仅诊断：请跑 du -sh ~/Library/Application\\ Support/* | sort -hr | head -10 看占用 Top 10，在对应 App 里找清理选项或卸载不用的 App。" \
+    "user" "不自动清理 —— 里面很多是用户数据，不是缓存" 31457280  # 30 GB
 
 printf "\r  %-60s\n" ""
 echo "  ${G}扫描完成！${NC}"
