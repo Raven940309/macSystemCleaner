@@ -155,6 +155,7 @@ translate_app_name() {
         Battle.net|net.battle.*) echo "Battle.net" ;;
 
         # ── 系统基础 / 沙盒通用 ──
+        group.com.apple.coreservices.useractivityd) echo "接力 / 通用剪贴板 (useractivityd)" ;;
         group.com.apple.*) echo "Apple 共享数据" ;;
         "Desktop Pictures") echo "桌面壁纸" ;;
         ColorSync) echo "色彩管理" ;;
@@ -216,6 +217,8 @@ SZ_PODCAST=0
 SZ_DEVTOOLS=0
 SZ_VSCODE=0
 SZ_QUICKLOOK=0
+SZ_HANDOFF=0
+SZ_ASITOP=0
 
 # 合成信号（额外诊断时填充）
 SZ_CONTAINERS=0
@@ -378,13 +381,28 @@ SZ_VSCODE=$((sz1 + sz2))
 log "  合计: $(human_size_kb $SZ_VSCODE)"
 log ""
 
-log "[20/20] QuickLook 缩略图"
+log "[20/22] QuickLook 缩略图"
 if [ -n "$TMPDIR" ] && [ -d "${TMPDIR%/}/../C" ]; then
     ql_dir="${TMPDIR%/}/../C/com.apple.QuickLook.thumbnailcache"
 else
     ql_dir="$HOME/Library/Caches/com.apple.QuickLook.thumbnailcache"
 fi
 get_size_kb SZ_QUICKLOOK "$ql_dir"
+log ""
+
+log "[21/22] Handoff 剪贴板存档 (useractivityd/shared-pasteboard)"
+# 注意：此目录受 macOS TCC 保护，普通权限连 ls 都不行，必须用 sudo 读取大小
+get_size_kb SZ_HANDOFF "$HOME/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/archives" "sudo"
+log ""
+
+log "[22/22] asitop 功耗采样日志 (/tmp/asitop_powermetrics*)"
+sz_asitop_b=$(ls -l /tmp/asitop_powermetrics* 2>/dev/null | awk '{s+=$5} END {print s+0}')
+SZ_ASITOP=$((sz_asitop_b / 1024))
+if [ "$SZ_ASITOP" -gt 0 ]; then
+    log "  /tmp/asitop_powermetrics* → $(human_size_kb $SZ_ASITOP)"
+else
+    log "  /tmp/asitop_powermetrics* → 未找到（非 asitop 用户正常）"
+fi
 log ""
 
 # ────────────────────────────────────────
@@ -538,6 +556,14 @@ fi
 # 20. QuickLook：超过 2 GB 提醒
 if [ "$SZ_QUICKLOOK" -gt 2097152 ]; then
     add_problem "QUICKLOOK|$SZ_QUICKLOOK"
+fi
+# 21. Handoff 剪贴板：> 512 MB 提醒
+if [ "$SZ_HANDOFF" -gt 524288 ]; then
+    add_problem "HANDOFF|$SZ_HANDOFF"
+fi
+# 22. asitop 日志：> 100 MB 提醒
+if [ "$SZ_ASITOP" -gt 102400 ]; then
+    add_problem "ASITOP|$SZ_ASITOP"
 fi
 
 # 合成信号：沙盒/应用数据大头（本工具不清理，给方向）
@@ -793,6 +819,36 @@ else
             say "    ${G}如果您想要自己手动清理（官方命令）：${NC}"
             say "      qlmanage -r cache"
             say "    ${D}缩略图会重新生成，无风险。${NC}"
+            say ""
+            ;;
+        HANDOFF)
+            say "${B}[$pn] Handoff 通用剪贴板存档过大${NC} —— $(human_size_kb $val)"
+            say "    ${D}路径：~/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/archives${NC}"
+            say "    ${Y}原因：已知 macOS bug。开启「隔空投送与接力」时，用 Cmd+C 复制大文件${NC}"
+            say "    ${Y}       （Lightroom 目录库、视频素材等）会把整份副本写入此目录，不会自动${NC}"
+            say "    ${Y}       清理。Reddit / Apple 社区上 Sonoma / Sequoia 大量同类报告，最高见${NC}"
+            say "    ${Y}       到几百 GB。小红书案例：MacBook Air M4 系统数据 80 GB 就是这个锅。${NC}"
+            say "    ${G}如果您想要自己手动清理（此目录受 TCC 保护，需要 sudo）：${NC}"
+            say "      # 保留一个 .bak 副本可回滚："
+            say "      TS=\$(date +%Y%m%d_%H%M%S)"
+            say "      sudo mv ~/Library/Group\\ Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/archives \\\\"
+            say "              ~/Library/Group\\ Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/archives.bak-\$TS"
+            say ""
+            say "    ${G}防止复发（二选一）：${NC}"
+            say "      1. 「系统设置 → 通用 → 隔空投送与接力」关闭「允许在设备之间进行接力」"
+            say "      2. 大文件改用拖拽传输，避免用 Cmd+C / Cmd+V"
+            say "    ${D}跨设备剪贴板短暂中断后自动恢复，零风险。${NC}"
+            say ""
+            ;;
+        ASITOP)
+            say "${B}[$pn] asitop 功耗采样日志过大${NC} —— $(human_size_kb $val)"
+            say "    ${D}路径：/tmp/asitop_powermetrics*${NC}"
+            say "    ${Y}原因：asitop（M 系列芯片 CPU/GPU 监控工具）的 powermetrics 采样日志${NC}"
+            say "    ${Y}       不会自动清理（GitHub issue tlkh/asitop#18 至今未修）。长期运行可${NC}"
+            say "    ${Y}       累积数十 GB。非 asitop 用户不会有这个问题。${NC}"
+            say "    ${G}如果您想要自己手动清理（零风险，/tmp 重启就清）：${NC}"
+            say "      rm -f /tmp/asitop_powermetrics*"
+            say "    ${D}asitop 下次启动会重新生成新日志。${NC}"
             say ""
             ;;
         CONTAINERS)

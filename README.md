@@ -85,7 +85,7 @@ zsh verify_all.command
 
 这个脚本**只看不动**。跑完会给你：
 
-- 20 项已知膨胀点的扫描结果
+- 22 项已知膨胀点的扫描结果
 - `~/Library/Containers` / `Application Support` / `Group Containers` 的 Top 10 应用占用（中文名）
 - **结尾一段「系统数据异常占用分析」**：只列真正异常的项，每项告诉你是什么、为什么大、你自己手动清怎么做
 
@@ -113,7 +113,7 @@ zsh MacSystemCleaner.command
 
 ## 覆盖清单
 
-**20 项扫描**：图标缓存 · Time Machine 快照 · APFS 快照 · Spotlight · 系统日志 · macOS 更新暂存 · GarageBand/Logic · iCloud 缓存 · CoreSpotlight · iOS 备份 · Xcode · Docker · Outlook · OneDrive · 用户应用缓存 · Mail · Podcast · 开发工具缓存（brew/npm/pip/cargo）· VS Code · QuickLook
+**22 项扫描**：图标缓存 · Time Machine 快照 · APFS 快照 · Spotlight · 系统日志 · macOS 更新暂存 · GarageBand/Logic · iCloud 缓存 · CoreSpotlight · iOS 备份 · Xcode · Docker · Outlook · OneDrive · 用户应用缓存 · Mail · Podcast · 开发工具缓存（brew/npm/pip/cargo）· VS Code · QuickLook · **Handoff 剪贴板存档** · **asitop 功耗日志**
 
 **2 项合成信号**：`~/Library/Containers` > 50 GB 或 `~/Library/Application Support` > 30 GB 时触发，给分 App 处理指引。
 

@@ -1,6 +1,6 @@
 #!/bin/zsh
 # ============================================================
-#  macOS 系统数据诊断与清理工具 0.4
+#  macOS 系统数据诊断与清理工具 0.5
 #
 #  诊断「系统设置 → 储存空间 → 系统数据」异常偏大的根因，
 #  覆盖 20+ 种已知的膨胀场景，逐项展示诊断结果并提供清理选项。
@@ -148,10 +148,10 @@ add_item() {
 
 echo ""
 echo "${B}╔════════════════════════════════════════════════════════════╗${NC}"
-echo "${B}║     macOS 系统数据诊断与清理工具 0.4                      ║${NC}"
+echo "${B}║     macOS 系统数据诊断与清理工具 0.5                      ║${NC}"
 echo "${B}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo "  本工具自动扫描 20+ 种已知的「系统数据」膨胀根因，"
+echo "  本工具自动扫描 22 项已知的「系统数据」膨胀根因，"
 echo "  精准定位异常占用并提供逐项清理选项。"
 echo ""
 
@@ -205,7 +205,7 @@ fi
 progress_idx=0
 scan_msg() {
     progress_idx=$((progress_idx + 1))
-    printf "\r  ${D}[%2d/20] 正在扫描: %-40s${NC}" "$progress_idx" "$1"
+    printf "\r  ${D}[%2d/22] 正在扫描: %-40s${NC}" "$progress_idx" "$1"
 }
 
 # ────────────────────────────────────────
@@ -421,6 +421,41 @@ add_item \
     "user" \
     "缩略图重新生成，无风险" \
     2097152  # 2 GB
+
+# 21. Handoff 通用剪贴板存档（useractivityd/shared-pasteboard/archives）
+# 已知 macOS bug：开启"隔空投送与接力"时，Cmd+C 复制大文件（Lightroom 目录、
+# 视频素材等）会把整份文件写入这个目录，累积可达几十至几百 GB。
+# Reddit / Apple Community 上大量同类报告（Sonoma / Sequoia 高发）。
+# 小红书案例：MacBook Air M4，系统数据 80 GB，根因就是这个目录。
+# 注意：虽然目录位于用户 Home 下，但受 macOS TCC 保护，普通权限连 ls 都不行，
+# 必须用 sudo。mv/rm 时也需要 sudo，但产生的 .bak 目录归属 root，用户无法直接
+# 再 mv 回来 —— 所以这里的 .bak 回滚需要用 sudo mv 复原。
+scan_msg "Handoff 剪贴板存档"
+sz=0
+get_size_kb sz "$HOME/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/archives" "sudo"
+add_item "Handoff 通用剪贴板存档" \
+    "~/Library/Group Containers/.../useractivityd/shared-pasteboard/archives" \
+    "$sz" \
+    "已知 macOS bug：开启接力/通用剪贴板时 Cmd+C 复制大文件会把整份副本写入此目录。Reddit/Apple 社区上 Sonoma/Sequoia 大量同类报告，最高见到几百 GB。删除安全，清理后 iPhone 共享剪贴板会失效片刻后自动恢复。" \
+    "[ -d \"\$HOME/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/archives\" ] && mv \"\$HOME/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/archives\" \"\$HOME/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/archives.bak-${TS}\" 2>/dev/null" \
+    "system" \
+    "iPhone/Mac 跨设备剪贴板短暂中断后自动恢复；建议同时在「系统设置 → 通用 → 隔空投送与接力」关闭接力，或大文件改用拖拽传输" \
+    524288  # 512 MB
+
+# 22. asitop 功耗日志（/tmp/asitop_powermetrics*）
+# asitop 是 M 系列芯片 CPU/GPU 监控工具，其 powermetrics 采样日志不会自动清理
+# （GitHub issue tlkh/asitop#18 至今未修）。曾见用户累积到 40+ GB。
+scan_msg "asitop 功耗日志"
+sz_asitop_b=$(ls -l /tmp/asitop_powermetrics* 2>/dev/null | awk '{s+=$5} END {print s+0}')
+sz_asitop=$((sz_asitop_b / 1024))
+add_item "asitop 功耗采样日志" \
+    "/tmp/asitop_powermetrics*" \
+    "$sz_asitop" \
+    "asitop（M 系列芯片 CPU/GPU 监控工具）的 powermetrics 采样日志。已知 bug：不会自动清理，长期运行可累积数十 GB。非 asitop 用户不会受影响。" \
+    "rm -f /tmp/asitop_powermetrics* 2>/dev/null" \
+    "user" \
+    "asitop 重启后会重新生成；/tmp 本来就是临时目录，清理零风险" \
+    102400  # 100 MB
 
 # ────────────────────────────────────────
 #  合成信号：大体积数据堆积区（本工具不清理，给方向）
