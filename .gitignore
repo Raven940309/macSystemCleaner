@@ -21,3 +21,6 @@ Changelog.md
 *.bak
 *.bak-*
 *~
+
+# DMG 构建产物（通过 GitHub Release 和百度网盘分发，不进 git）
+dist/

@@ -10,7 +10,15 @@
 [ -z "$ZSH_VERSION" ] && exec zsh "$0" "$@"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LOG_FILE="${SCRIPT_DIR}/verify_$(date '+%Y%m%d_%H%M%S').log"
+# 脚本目录若只读（如从 DMG 挂载点运行），log 降级到 ~/Downloads/ 或 $HOME
+if [ -w "$SCRIPT_DIR" ]; then
+    LOG_DIR="$SCRIPT_DIR"
+else
+    LOG_DIR="$HOME/Downloads"
+    [ -d "$LOG_DIR" ] && [ -w "$LOG_DIR" ] || LOG_DIR="$HOME"
+    echo "（脚本目录只读，日志将写入 $LOG_DIR/）"
+fi
+LOG_FILE="${LOG_DIR}/verify_$(date '+%Y%m%d_%H%M%S').log"
 
 log() {
     local msg="[$(date '+%H:%M:%S')] $*"
