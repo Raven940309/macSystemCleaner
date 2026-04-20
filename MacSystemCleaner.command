@@ -13,6 +13,10 @@
 # 不使用 set -euo pipefail：扫描过程中部分目录可能权限不足或不存在，
 # 这些是预期内的失败，不应中断整个脚本
 
+# 确保以 zsh 运行：若用户 `bash MacSystemCleaner.command` 启动，bash 不解释 \033 颜色码
+# 会显示乱码；这里自动切换到 zsh 重新执行
+[ -z "$ZSH_VERSION" ] && exec zsh "$0" "$@"
+
 # ── 颜色 ──
 R='\033[0;31m'; G='\033[0;32m'; Y='\033[1;33m'; C='\033[0;36m'; B='\033[1m'; D='\033[2m'; NC='\033[0m'
 
@@ -65,8 +69,9 @@ get_size_kb() {
         raw=$(du -sk "$target" 2>/dev/null)
     fi
     local result="${raw%%[[:space:]]*}"
-    if [ -z "$result" ]; then result=0; fi
-    eval "$varname=$result"
+    # 防御：result 必须是纯数字，否则 eval 赋值可能执行任意代码
+    [[ "$result" =~ ^[0-9]+$ ]] || result=0
+    eval "$varname=\"\$result\""
 }
 
 # ── 交互式清理：图标缓存（体积可达数百 GB，无官方命令，不适合备份）──
@@ -117,9 +122,10 @@ add_item() {
     # 参数: name path size_kb desc fix level risk threshold_kb
     local name="$1" path="$2" size_kb="${3:-0}" desc="$4" fix="$5" level="$6" risk="$7" threshold_kb="${8:-0}"
 
-    [ -z "$size_kb" ] && size_kb=0
-    [ -z "$threshold_kb" ] && threshold_kb=0
-    if [ "$size_kb" -le "$threshold_kb" ] 2>/dev/null; then
+    # 防御性：size_kb / threshold_kb 非数字时归零，避免 -le 比较异常导致误触发
+    [[ "$size_kb" =~ ^[0-9]+$ ]] || size_kb=0
+    [[ "$threshold_kb" =~ ^[0-9]+$ ]] || threshold_kb=0
+    if [ "$size_kb" -le "$threshold_kb" ]; then
         return
     fi
     
@@ -216,7 +222,8 @@ add_item "图标缓存数据库 (iconservices)" "/Library/Caches/com.apple.icons
 
 # 2. Time Machine 本地快照
 scan_msg "Time Machine 本地快照"
-tm_snapshots=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c "com.apple.TimeMachine" || true)
+tm_snapshots=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c "com.apple.TimeMachine")
+[ -z "$tm_snapshots" ] && tm_snapshots=0
 if [ "$tm_snapshots" -gt 3 ]; then
     add_item "Time Machine 本地快照 (${tm_snapshots} 个)" "tmutil" $((tm_snapshots * 5242880)) \
         "系统自动创建的 APFS 快照，保留了删除文件前的磁盘状态。快照过多会占用大量空间。" \
@@ -391,12 +398,18 @@ get_size_kb sz2 "$HOME/Library/Application Support/Code/CachedData"
 sz_total=$((sz + sz2))
 add_item "VS Code 编辑器缓存" "~/Library/Application Support/Code/Cache*" "$sz_total" \
     "VS Code 的运行缓存和扩展数据缓存。" \
-    "[ -d ~/Library/Application\\ Support/Code/Cache ] && mv ~/Library/Application\\ Support/Code/Cache ~/Library/Application\\ Support/Code/Cache.bak-${TS} 2>/dev/null; [ -d ~/Library/Application\\ Support/Code/CachedData ] && mv ~/Library/Application\\ Support/Code/CachedData ~/Library/Application\\ Support/Code/CachedData.bak-${TS} 2>/dev/null" \
+    "[ -d \"$HOME/Library/Application Support/Code/Cache\" ] && mv \"$HOME/Library/Application Support/Code/Cache\" \"$HOME/Library/Application Support/Code/Cache.bak-${TS}\" 2>/dev/null; [ -d \"$HOME/Library/Application Support/Code/CachedData\" ] && mv \"$HOME/Library/Application Support/Code/CachedData\" \"$HOME/Library/Application Support/Code/CachedData.bak-${TS}\" 2>/dev/null" \
     "user" "扩展可能需要重新初始化" 3145728
 
 # 20. QuickLook 缩略图缓存
 scan_msg "QuickLook 缩略图"
-ql_dir="${TMPDIR%/}/../C/com.apple.QuickLook.thumbnailcache"
+# $TMPDIR 通常是 /var/folders/xx/yyyy/T/，上层 C/ 是用户缓存
+# 若 $TMPDIR 未设置（某些 launchd 上下文）或结构异常，降级到 ~/Library/Caches/
+if [ -n "$TMPDIR" ] && [ -d "${TMPDIR%/}/../C" ]; then
+    ql_dir="${TMPDIR%/}/../C/com.apple.QuickLook.thumbnailcache"
+else
+    ql_dir="$HOME/Library/Caches/com.apple.QuickLook.thumbnailcache"
+fi
 sz=0
 [ -d "$ql_dir" ] && get_size_kb sz "$ql_dir"
 add_item \

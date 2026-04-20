@@ -6,6 +6,9 @@
 #  最后输出分析：哪些项异常、为什么、怎么自己清理
 # ============================================================
 
+# 确保以 zsh 运行：若用户 `bash verify_all.command` 启动，bash 不解释 \033 颜色码
+[ -z "$ZSH_VERSION" ] && exec zsh "$0" "$@"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOG_FILE="${SCRIPT_DIR}/verify_$(date '+%Y%m%d_%H%M%S').log"
 
@@ -178,8 +181,9 @@ get_size_kb() {
         raw=$(du -sk "$target" 2>/dev/null)
     fi
     local result="${raw%%[[:space:]]*}"
-    if [ -z "$result" ]; then result=0; fi
-    eval "$varname=$result"
+    # 防御：result 必须是纯数字，否则 eval 赋值可能执行任意代码
+    [[ "$result" =~ ^[0-9]+$ ]] || result=0
+    eval "$varname=\"\$result\""
     log "  $target → $(human_size_kb $result)"
 }
 
@@ -240,7 +244,8 @@ log ""
 
 log "[2/20] Time Machine 本地快照"
 tm_output=$(tmutil listlocalsnapshots / 2>/dev/null)
-CNT_TM=$(echo "$tm_output" | grep -c "com.apple.TimeMachine" || true)
+CNT_TM=$(echo "$tm_output" | grep -c "com.apple.TimeMachine")
+[ -z "$CNT_TM" ] && CNT_TM=0
 log "  快照数量: $CNT_TM"
 if [ "$CNT_TM" -gt 0 ]; then
     log "  快照列表:"
@@ -366,7 +371,11 @@ log "  合计: $(human_size_kb $SZ_VSCODE)"
 log ""
 
 log "[20/20] QuickLook 缩略图"
-ql_dir="${TMPDIR%/}/../C/com.apple.QuickLook.thumbnailcache"
+if [ -n "$TMPDIR" ] && [ -d "${TMPDIR%/}/../C" ]; then
+    ql_dir="${TMPDIR%/}/../C/com.apple.QuickLook.thumbnailcache"
+else
+    ql_dir="$HOME/Library/Caches/com.apple.QuickLook.thumbnailcache"
+fi
 get_size_kb SZ_QUICKLOOK "$ql_dir"
 log ""
 
