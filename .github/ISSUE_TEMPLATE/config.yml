@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 查看已知 bug 清单 / Check known bugs
+    url: https://github.com/Raven940309/macSystemCleaner/blob/main/README.md#覆盖清单
+    about: 提 Issue 前先确认一下这个 bug 是否已经在 28 项里
+  - name: 最新 Release / Latest Release
+    url: https://github.com/Raven940309/macSystemCleaner/releases/latest
+    about: 下载最新 DMG，可能问题已经在新版本修了

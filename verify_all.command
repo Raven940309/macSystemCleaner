@@ -414,7 +414,7 @@ get_size_kb SZ_HANDOFF "$HOME/Library/Group Containers/group.com.apple.coreservi
 log ""
 
 log "[24/28] asitop 功耗采样日志 (/tmp/asitop_powermetrics*)"
-sz_asitop_b=$(ls -l /tmp/asitop_powermetrics* 2>/dev/null | awk '{s+=$5} END {print s+0}')
+sz_asitop_b=$(ls -l /tmp/asitop_powermetrics*(N) 2>/dev/null | awk '{s+=$5} END {print s+0}')
 SZ_ASITOP=$((sz_asitop_b / 1024))
 if [ "$SZ_ASITOP" -gt 0 ]; then
     log "  /tmp/asitop_powermetrics* → $(human_size_kb $SZ_ASITOP)"

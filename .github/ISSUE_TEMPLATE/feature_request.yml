@@ -1,0 +1,78 @@
+name: 新检测项建议 / New Detection Item
+description: 你的 Mac 上发现了本工具没覆盖的「系统数据」膨胀点 / A macOS bloat location this tool doesn't cover yet
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本工具的每一项都是从作者或反馈者踩过的真实坑长出来的，不从论坛扒 bug。
+        所以填这个模板的前提是：**你的 Mac 上真实看到了这个问题**。
+
+        This tool only adds detection items that real users have actually hit — not items scraped from forums.
+        Please only file this if you personally experienced the issue on your own Mac.
+
+  - type: input
+    id: macos_version
+    attributes:
+      label: macOS 版本 / macOS Version
+      placeholder: "例：Sequoia 15.1.1"
+    validations:
+      required: true
+
+  - type: input
+    id: path
+    attributes:
+      label: 异常路径 / The bloated path
+      description: 具体的系统/用户路径
+      placeholder: "例：~/Library/Containers/com.xxx.xxx/Data/Caches"
+    validations:
+      required: true
+
+  - type: input
+    id: size
+    attributes:
+      label: 实际大小 / Actual size
+      description: 你的 Mac 上这个路径占了多少
+      placeholder: "例：87 GB"
+    validations:
+      required: true
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 触发场景 / Trigger scenario
+      description: 什么操作 / 什么状态下膨胀起来？
+      placeholder: 例：频繁在 Logseq 里切换 graph 后此目录每天涨几 GB。
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: 参考资料 / References
+      description: Apple Discussions / Reddit / GitHub Issue 等有别人报告同类问题的链接
+      placeholder: |
+        https://discussions.apple.com/thread/xxx
+        https://www.reddit.com/r/MacOS/comments/xxx
+
+  - type: dropdown
+    id: cleanup_method
+    attributes:
+      label: 清理方式 / Cleanup method
+      description: 你是怎么清理的？（对应本工具的 4 档策略）
+      options:
+        - 有官方 CLI 命令 / Official CLI (档位 A)
+        - 可以 mv 到 .bak 回滚 / mv to .bak (档位 B)
+        - 必须二次确认才能删 / Requires confirmation (档位 C)
+        - 只能仅诊断不动 / Diagnose only (档位 D)
+        - 不确定 / Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: verified
+    attributes:
+      label: 你验证过的清理效果 / Verified cleanup outcome
+      description: 清了之后发生了什么？系统/App 是否正常工作？是否有副作用？
+      placeholder: 例：mv 后系统运行 72h 无异常，Logseq 打开老 graph 需重新索引 2 分钟。

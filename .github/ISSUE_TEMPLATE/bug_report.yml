@@ -1,0 +1,102 @@
+name: Bug 反馈 / Bug Report
+description: 本工具扫描错误、清理失败、或数据异常 / Scan error, cleanup failure, or unexpected behavior
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。为了能快速定位问题，请尽量填完下面的字段。
+        如果你在小红书也看到过别人反馈类似问题，请顺便贴一下小红书链接/截图。
+
+        Thanks for the report. Please fill as much as you can so the issue can be diagnosed quickly.
+
+  - type: input
+    id: macos_version
+    attributes:
+      label: macOS 版本 / macOS Version
+      description: 「关于本机」里看到的完整版本号
+      placeholder: "例：Sequoia 15.1.1 / Sonoma 14.6.1 / Ventura 13.7"
+    validations:
+      required: true
+
+  - type: input
+    id: mac_model
+    attributes:
+      label: Mac 机型 / Mac Model
+      description: 「关于本机」→「型号」；M 系列还是 Intel
+      placeholder: "例：MacBook Air M4 / MacBook Pro 2019 (Intel) / Mac mini M2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tool_version
+    attributes:
+      label: 本工具版本 / Tool Version
+      description: 在脚本开头或 Release 页面可以看到版本号
+      options:
+        - v0.7
+        - v0.6
+        - v0.5
+        - v0.4
+        - v0.3
+        - 其他 / Other (请在描述中说明)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: distribution
+    attributes:
+      label: 下载方式 / How did you get the tool?
+      options:
+        - GitHub Release DMG
+        - 百度网盘 DMG / Baidu Netdisk
+        - git clone
+        - GitHub ZIP 下载（不推荐）
+        - 其他 / Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: 遇到了什么 / What happened?
+      description: 描述实际发生了什么。越具体越好。
+      placeholder: |
+        例：跑 MacSystemCleaner.command 到第 3 项时终端报 "xxx"。
+        或：[25] mediaanalysisd 扫描显示 0 KB 但我的 Photos Caches 明显有 40 GB。
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期应该是什么 / What did you expect?
+      placeholder: 例：应该扫到真实的 40 GB，或者应该提示某个权限问题。
+
+  - type: textarea
+    id: verify_output
+    attributes:
+      label: verify_all.command 的日志 / verify_all.command Output
+      description: |
+        这是定位问题的关键信息。请运行 `verify_all.command`，把生成的 `verify_<时间戳>.log` 粘贴进来（可以截取关键部分）。
+        **注意：日志里会包含你的用户名和部分路径。如果不希望公开，可以先本地替换 `raven` → `<username>` 再贴。**
+      render: shell
+      placeholder: |
+        粘贴 verify_<时间戳>.log 的内容，或关键片段
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 其他补充 / Anything else?
+      description: 截图、小红书链接、你已经尝试过的方法都可以
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: 确认 / Confirmations
+      options:
+        - label: 我已经在 [最新 Release](https://github.com/Raven940309/macSystemCleaner/releases/latest) 上确认过这个问题
+          required: false
+        - label: 我允许把上面的日志/信息作为 public Issue 的一部分
+          required: true
